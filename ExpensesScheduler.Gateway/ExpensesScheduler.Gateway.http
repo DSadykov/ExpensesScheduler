@@ -1,0 +1,6 @@
+@ExpensesScheduler.Gateway_HostAddress = http://localhost:5233
+
+GET {{ExpensesScheduler.Gateway_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

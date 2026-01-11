@@ -1,0 +1,6 @@
+@ExpensesScheduler.AuthorizationService_HostAddress = http://localhost:5217
+
+GET {{ExpensesScheduler.AuthorizationService_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

@@ -1,0 +1,12 @@
+<Solution>
+  <Project Path="docker-compose.dcproj">
+    <Build />
+  </Project>
+  <Project Path="ExpensesScheduler.Authorization/ExpensesScheduler.Authorization.csproj" Id="84a0ccbc-b576-414a-81c4-688b2ff40cc7" />
+  <Project Path="ExpensesScheduler.AuthorizationService/ExpensesScheduler.AuthorizationService.csproj" Id="030a6175-8ac0-4c2d-9a41-1ea067d768db" />
+  <Project Path="ExpensesScheduler.ExpensesSchedulerService/ExpensesScheduler.ExpensesSchedulerService.csproj" />
+  <Project Path="ExpensesScheduler.Gateway/ExpensesScheduler.Gateway.csproj" Id="b1c3d60e-2b0f-4978-99d5-f99dc0369b98" />
+  <Project Path="ExpensesScheduler.Messaging/ExpensesScheduler.Messaging.csproj" />
+  <Project Path="ExpensesScheduler.NotificationService/ExpensesScheduler.NotificationService.csproj" Id="4db86ed1-839b-47f9-8329-54b59ea4fdf0" />
+  <Project Path="ExpensesScheduler.SmtpNotificationService/ExpensesScheduler.SmtpNotificationService.csproj" Id="ef747155-bf33-439d-84a5-cadb0771092b" />
+</Solution>

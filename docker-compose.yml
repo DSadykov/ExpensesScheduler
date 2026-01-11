@@ -1,0 +1,240 @@
+﻿version: '3.8'
+
+services:
+  redis:
+    image: redis:7.2-alpine
+    container_name: redis_container
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - expenses-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.25'
+
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: sqlserver_container
+    ports:
+      - "${SQLSERVER_PORT:-1434}:1433"
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD}
+      MSSQL_PID: ${MSSQL_PID:-Developer}
+    volumes:
+      - sqlserver_data:/var/opt/mssql
+    networks:
+      - expenses-net
+    restart: unless-stopped
+    healthcheck:
+      test: /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "${MSSQL_SA_PASSWORD}" -C -Q "SELECT 1" || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 8G
+          cpus: '6.0'
+
+  sqlserver-init:
+    image: mcr.microsoft.com/mssql-tools
+    container_name: sqlserver_init_container
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    networks:
+      - expenses-net
+    environment:
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD}
+    command: >
+      /opt/mssql-tools/bin/sqlcmd -S sqlserver -U sa -P ${MSSQL_SA_PASSWORD} -Q "IF NOT EXISTS (SELECT name FROM sys.databases WHERE name = N'Hangfire') CREATE DATABASE [Hangfire]"
+  
+  # --- KAFKA В РЕЖИМЕ KRAFT (БЕЗ ZOOKEEPER) ---
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: kafka_container
+    ports:
+      - "${KAFKA_PORT:-9092}:9092"
+    environment:
+      # Настройки KRaft
+      KAFKA_NODE_ID: 1
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT'
+      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:${KAFKA_PORT:-9092}'
+      KAFKA_PROCESS_ROLES: 'broker,controller'
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka:29093'
+      KAFKA_LISTENERS: 'PLAINTEXT://0.0.0.0:29092,CONTROLLER://0.0.0.0:29093,PLAINTEXT_HOST://0.0.0.0:9092'
+      KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT'
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+      # Идентификатор кластера (можно сгенерировать любой)
+      CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
+      # Прочие настройки
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG_RETENTION_HOURS: 168
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    networks:
+      - expenses-net
+    restart: unless-stopped
+    healthcheck:
+      test: kafka-broker-api-versions --bootstrap-server localhost:9092 || exit 1
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  auth-srv:
+    build:
+      context: .
+      dockerfile: ExpensesScheduler.AuthorizationService/Dockerfile
+    container_name: auth-srv_container
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ASPNETCORE_URLS: http://+:7069
+      Kafka__BootstrapServers: "kafka:29092"
+      Authorization__JwtKey: "${JWT_SECRET}"
+      ConnectionStrings__Default: "Server=sqlserver;Database=Users;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True;"
+    depends_on:
+      kafka:
+        condition: service_healthy
+      sqlserver:
+        condition: service_healthy
+      # gateway-srv:
+      #   condition: service_healthy
+    networks:
+      - expenses-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7069/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+
+  scheduler-srv:
+    build:
+      context: .
+      dockerfile: ExpensesScheduler.ExpensesSchedulerService/Dockerfile
+    container_name: scheduler-srv_container
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7236/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ASPNETCORE_URLS: http://+:7236
+      Kafka__BootstrapServers: "kafka:29092"
+      ConnectionStrings__hangfire: "Server=sqlserver;Database=Hangfire;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True;"
+      ConnectionStrings__Default: "Server=sqlserver;Database=ExpensesDb;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True;"
+      ConnectionStrings__redis: "redis:6379"
+      Authorization__JwtKey: "${JWT_SECRET}"
+    depends_on:
+      kafka:
+        condition: service_healthy
+      sqlserver:
+        condition: service_healthy
+      sqlserver-init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      # gateway-srv:
+      #   condition: service_healthy
+    networks:
+      - expenses-net
+    restart: unless-stopped
+
+  notification-srv:
+    build:
+      context: .
+      dockerfile: ExpensesScheduler.NotificationService/Dockerfile
+    container_name: notification-srv_container
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      Kafka__BootstrapServers: "kafka:29092"
+    depends_on:
+      kafka:
+        condition: service_healthy      
+      # smtp-srv:
+      #   condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - expenses-net
+    restart: unless-stopped
+
+  smtp-srv:
+    build:
+      context: .
+      dockerfile: ExpensesScheduler.SmtpNotificationService/Dockerfile
+    container_name: smtp-srv_container
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ConnectionStrings__Default: "Server=sqlserver;Database=SmtpNotificationSettings;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True;"
+      Kafka__BootstrapServers: "kafka:29092"
+    depends_on:
+      kafka:
+        condition: service_healthy
+      sqlserver:
+        condition: service_healthy
+      # gateway-srv:
+      #   condition: service_healthy
+    networks:
+      - expenses-net
+    restart: unless-stopped
+
+  gateway-srv:
+    build:
+      context: .
+      dockerfile: ExpensesScheduler.Gateway/Dockerfile
+    container_name: gateway-srv_container
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8082/health"]
+      interval: 10s       # Проверять каждые 10 секунд
+      timeout: 5s
+      retries: 5          # Дать больше попыток (итого ~65 секунд запаса)
+      start_period: 15s   # Дать 15 секунд просто на запуск процесса
+    ports:
+      - "${GATEWAY_SERVICE_PORT:-8082}:8082"
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ASPNETCORE_URLS: http://+:8082
+    networks:
+      - expenses-net
+    restart: unless-stopped
+
+networks:
+  expenses-net:
+    driver: bridge
+
+volumes:
+  sqlserver_data:
+    driver: local
+  kafka_data:
+    driver: local
+  redis_data:
+    driver: local
