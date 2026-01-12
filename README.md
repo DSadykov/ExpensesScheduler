@@ -123,7 +123,13 @@ Hangfire → ScheduledExpensesWorker → SQL Server (получение запл
    - Управление настройками уведомлений пользователей
    - База данных: `SmtpNotificationSettings`
 
-6. **Shared Libraries**
+6. **Web Service** (Порт: 3000)
+   - Веб-интерфейс на базе nginx
+   - Статический фронтенд (HTML/CSS/JavaScript)
+   - Проксирование API запросов к Gateway
+   - Доступен по адресу: `http://localhost:3000`
+
+7. **Shared Libraries**
    - **ExpensesScheduler.Authorization**: Общая логика авторизации (JWT Middleware, Attributes)
    - **ExpensesScheduler.Messaging**: Инфраструктура Kafka (Producers/Consumers)
 
@@ -156,6 +162,7 @@ ExpensesScheduler/
 ├── ExpensesScheduler.ExpensesSchedulerService/ # Основной сервис планирования расходов
 ├── ExpensesScheduler.NotificationService/  # Сервис уведомлений
 ├── ExpensesScheduler.SmtpNotificationService/ # SMTP сервис
+├── ExpensesScheduler.Web/                  # Веб-интерфейс (nginx + static files)
 ├── ExpensesScheduler.Authorization/        # Библиотека авторизации (shared)
 ├── ExpensesScheduler.Messaging/            # Библиотека Kafka (shared)
 ├── docker-compose.yml                      # Конфигурация Docker Compose
@@ -166,7 +173,7 @@ ExpensesScheduler/
 
 - **Docker Desktop** (или Docker Engine + Docker Compose)
   - Минимум 8 GB RAM (рекомендуется 16 GB)
-  - Доступные порты: 8082, 7069, 7236, 8081, 8080, 9092, 6379, 1434
+  - Доступные порты: 8082, 7069, 7236, 8081, 8080, 3000, 9092, 6379, 1434
 - **.NET SDK 10.0** (только для локальной разработки без Docker)
 
 ## 🚀 Быстрый старт
@@ -187,8 +194,8 @@ cd denis_scheduler
 MSSQL_SA_PASSWORD=YourStrong!Password123
 SQLSERVER_PORT=1434
 
-# JWT Secret (минимум 16 символов)
-JWT_SECRET=YourSuperSecretJwtKey123456789
+# JWT Secret (минимум 32 символа для HMAC-SHA256)
+JWT_SECRET=YourSuperSecretJwtKey12345678901234560123456
 
 # Kafka
 KAFKA_PORT=9092
@@ -199,12 +206,15 @@ REDIS_PORT=6379
 # Gateway
 GATEWAY_SERVICE_PORT=8082
 
+# Web Frontend
+WEB_SERVICE_PORT=3000
+
 # Environment
 ASPNETCORE_ENVIRONMENT=Development
 ```
 
 **Важно**: 
-- `JWT_SECRET` должен быть минимум 16 символов
+- `JWT_SECRET` должен быть минимум **32 символа** (256 бит для алгоритма HMAC-SHA256)
 - `MSSQL_SA_PASSWORD` должен соответствовать требованиям сложности SQL Server (минимум 8 символов, включая заглавные, строчные, цифры и специальные символы)
 
 ### 3. Запуск через Docker Compose
@@ -266,11 +276,12 @@ curl http://localhost:8080/health
 
 ```env
 MSSQL_SA_PASSWORD=YourStrong!Password123
-JWT_SECRET=YourSuperSecretJwtKey123456789
+JWT_SECRET=YourSuperSecretJwtKey12345678901234560123456
 SQLSERVER_PORT=1434
 KAFKA_PORT=9092
 REDIS_PORT=6379
 GATEWAY_SERVICE_PORT=8082
+WEB_SERVICE_PORT=3000
 ASPNETCORE_ENVIRONMENT=Development
 ```
 
@@ -348,7 +359,21 @@ docker-compose up -d --scale scheduler-srv=2
 
 ## 📚 API документация
 
-После запуска сервисов, Swagger UI доступен в режиме Development:
+### Web интерфейс
+
+После запуска всех сервисов, веб-интерфейс доступен по адресу:
+
+- **Web интерфейс**: `http://localhost:3000`
+
+Веб-интерфейс предоставляет полный функционал для работы с системой:
+- Регистрация и авторизация пользователей
+- Управление запланированными расходами (добавление, редактирование, удаление)
+- Просмотр истории расходов с фильтрацией по датам
+- Интуитивно понятный интерфейс
+
+### Swagger UI
+
+Также доступна Swagger документация для API в режиме Development:
 
 - **Authorization Service**: `http://localhost:7069/swagger`
 - **Expenses Scheduler Service**: `http://localhost:7236/swagger`

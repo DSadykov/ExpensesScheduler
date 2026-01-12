@@ -227,6 +227,26 @@ services:
       - expenses-net
     restart: unless-stopped
 
+  web-srv:
+    build:
+      context: ExpensesScheduler.Web
+      dockerfile: Dockerfile
+    container_name: web-srv_container
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    ports:
+      - "${WEB_SERVICE_PORT:-3000}:80"
+    depends_on:
+      gateway-srv:
+        condition: service_healthy
+    networks:
+      - expenses-net
+    restart: unless-stopped
+
 networks:
   expenses-net:
     driver: bridge
