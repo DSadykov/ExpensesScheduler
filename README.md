@@ -32,25 +32,25 @@
 ### Компоненты системы
 
 ```
-┌─────────────────┐
-│   API Gateway   │ (YARP Reverse Proxy)
-│   Port: 8082    │
-└────────┬────────┘
+┌─────────────────┐                         ┌────────────────┐
+│   API Gateway   │ (YARP Reverse Proxy)    │   Frontend     │
+│   Port: 8082    │◄────────────────────────│   Port: 3000   │
+└────────┬────────┘                         └────────────────┘
          │
     ┌────┴────┬────────────────┐
     │         │                │
 ┌───▼───┐ ┌──▼──────┐   ┌──────▼─────┐
 │ Auth  │ │Scheduler│   │Notification│
-│ Service│ │ Service │   │  Service   │
+│Service│ │ Service │   │  Service   │
 │ 7069  │ │  7236   │   │   8081     │
 └───┬───┘ └───┬─────┘   └──────┬─────┘
     │         │                │
     │    ┌────┴────┐           │
     │    │  Kafka  │◄──────────┘
-    │    │  9092   │
-    │    └────┬────┘
-    │         │
-┌───▼─────────▼────┐
+    ─────│  9092   │
+         └────┬────┘
+              │
+┌─────────────▼────┐
 │ SMTP Notification│
 │    Service 8080  │
 └──────────────────┘
@@ -182,7 +182,7 @@ ExpensesScheduler/
 
 ```bash
 git clone <repository-url>
-cd denis_scheduler
+cd ExpensesScheduler
 ```
 
 ### 2. Настройка переменных окружения
