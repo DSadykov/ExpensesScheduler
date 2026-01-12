@@ -15,7 +15,7 @@ ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 
 # 1. Копируем csproj основного сервиса и всех зависимых библиотек
-COPY ["ExpensesScheduler.NotificationService/ExpensesScheduler.SmtpNotificationService.csproj", "ExpensesScheduler.NotificationService/"]
+COPY ["ExpensesScheduler.SmtpNotificationService/ExpensesScheduler.SmtpNotificationService.csproj", "ExpensesScheduler.NotificationService/"]
 COPY ["ExpensesScheduler.Authorization/ExpensesScheduler.Authorization.csproj", "ExpensesScheduler.Authorization/"]
 COPY ["ExpensesScheduler.Messaging/ExpensesScheduler.Messaging.csproj", "ExpensesScheduler.Messaging/"]
 
