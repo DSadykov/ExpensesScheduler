@@ -240,9 +240,9 @@ services:
       start_period: 10s
     ports:
       - "${WEB_SERVICE_PORT:-3000}:80"
-    depends_on:
-      gateway-srv:
-        condition: service_healthy
+    # depends_on:
+    #   gateway-srv:
+    #     condition: service_healthy
     networks:
       - expenses-net
     restart: unless-stopped
