@@ -81,31 +81,68 @@ public class SheduledExpensesService(ScheduledExpensesDbContext dbContext,
     }
     public async Task<AddScheduledExpenseResponse> AddScheduledExpenseAsync(AddScheduledExpenseRequest request, Guid userID)
     {
-        logger.LogInformation("AddScheduledExpenseAsync called for UserId: {UserId}, Amount: {Amount}", userID, request.Amount);
+        logger.LogInformation("AddScheduledExpenseAsync called for UserId: {UserId}, Amount: {Amount}, ScheduleType: {ScheduleType}, HappensInDays: {HappensInDays}", 
+            userID, request.Amount, request.ScheduleType, request.HappensInDays);
 
         try
         {
+            int? happensInDays = null;
+            bool? everyMonth = null;
+            
+            // Обработка ScheduleType
+            if (request.ScheduleType.HasValue)
+            {
+                var scheduleType = request.ScheduleType.Value;
+                logger.LogDebug("Processing schedule type: {ScheduleType} (value: {Value})", scheduleType, (int)scheduleType);
+                
+                if (scheduleType == ScheduleTypes.PerMonth)
+                {
+                    logger.LogDebug("Setting PerMonth: HappensInDays=null, EveryMonth=true");
+                    happensInDays = null;
+                    everyMonth = true;
+                }
+                else
+                {
+                    everyMonth = false;
+                    happensInDays = request.HappensInDays ?? scheduleType switch
+                    {
+                        ScheduleTypes.PerDay => (int?)1,
+                        ScheduleTypes.PerWeek => (int?)7,
+                        _ => null
+                    };
+                    logger.LogDebug("Setting non-PerMonth: HappensInDays={HappensInDays}, EveryMonth=false", happensInDays);
+                }
+            }
+            else if (request.HappensInDays.HasValue)
+            {
+                logger.LogDebug("Processing custom HappensInDays: {HappensInDays}", request.HappensInDays);
+                everyMonth = false;
+                happensInDays = request.HappensInDays;
+            }
+            else
+            {
+                logger.LogWarning("Neither ScheduleType nor HappensInDays provided - this should be caught by validation");
+            }
+            
+            logger.LogDebug("Final values - HappensInDays: {HappensInDays}, EveryMonth: {EveryMonth}", happensInDays, everyMonth);
+            
             ScheduledExpenseModel entity = new()
             {
                 UserID = userID,
                 Amount = request.Amount,
                 CreatedDate = DateTime.UtcNow.Date,
                 Description = request.Description,
-                HappensInDays = request.HappensInDays ??
-                request.ScheduleType switch
-                {
-                    ScheduleTypes.PerDay => 1,
-                    ScheduleTypes.PerWeek => 7,
-                    _ => throw new ArgumentException($"Unsupported ScheduleType - {request.ScheduleType}")
-                },
-                EveryMonth = request.ScheduleType == ScheduleTypes.PerMonth,
+                HappensInDays = happensInDays,
+                EveryMonth = everyMonth,
                 OneTimeOnly = request.OneTimeOnly,
                 Id = Guid.NewGuid(),
             };
 
             await dbContext.ScheduledExpenses.AddAsync(entity);
+            logger.LogDebug("Entity added to context, saving changes...");
 
             await dbContext.SaveChangesAsync();
+            logger.LogDebug("Changes saved successfully");
 
             var createdEntity = await dbContext.ScheduledExpenses.FindAsync(entity.Id);
 
@@ -119,12 +156,12 @@ public class SheduledExpensesService(ScheduledExpensesDbContext dbContext,
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error while adding scheduled expense for UserId: {UserId}, Request: {Request}", userID, JsonSerializer.Serialize(request));
-            // add logger
+            logger.LogError(ex, "Error while adding scheduled expense for UserId: {UserId}, Request: {Request}, Exception: {Exception}", 
+                userID, JsonSerializer.Serialize(request), ex.ToString());
             return new()
             {
                 ErrorMessage = $"Error while adding expense with body" +
-                $" {JsonSerializer.Serialize(request)}",
+                $" {JsonSerializer.Serialize(request)}. Exception: {ex.Message}",
 
                 StatusCode = HttpStatusCode.BadRequest
             };

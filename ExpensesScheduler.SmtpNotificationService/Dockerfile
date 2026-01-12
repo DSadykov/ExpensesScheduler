@@ -1,7 +1,7 @@
-# Сценарий запуска
+# пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
 WORKDIR /app
-# Порт для этого сервиса
+# пїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
 EXPOSE 8080
 ENV ASPNETCORE_URLS=http://+:8080
 
@@ -9,32 +9,32 @@ USER root
 RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 USER $APP_UID
 
-# Сценарий сборки
+# пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 
-# 1. Копируем csproj основного сервиса и всех зависимых библиотек
-COPY ["ExpensesScheduler.SmtpNotificationService/ExpensesScheduler.SmtpNotificationService.csproj", "ExpensesScheduler.NotificationService/"]
+# 1. пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ csproj пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+COPY ["ExpensesScheduler.SmtpNotificationService/ExpensesScheduler.SmtpNotificationService.csproj", "ExpensesScheduler.SmtpNotificationService/"]
 COPY ["ExpensesScheduler.Authorization/ExpensesScheduler.Authorization.csproj", "ExpensesScheduler.Authorization/"]
 COPY ["ExpensesScheduler.Messaging/ExpensesScheduler.Messaging.csproj", "ExpensesScheduler.Messaging/"]
 
-# 2. Восстанавливаем зависимости
+# 2. пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
 RUN dotnet restore "ExpensesScheduler.SmtpNotificationService/ExpensesScheduler.SmtpNotificationService.csproj"
 
-# 3. Копируем весь исходный код из корня решения
+# 3. пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
 COPY . .
 
-# 4. Сборка проекта
+# 4. пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
 WORKDIR "/src/ExpensesScheduler.SmtpNotificationService"
 RUN dotnet build "ExpensesScheduler.SmtpNotificationService.csproj" -c $BUILD_CONFIGURATION -o /app/build
 
-# 5. Публикация
+# 5. пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
 FROM build AS publish
 ARG BUILD_CONFIGURATION=Release
 RUN dotnet publish "ExpensesScheduler.SmtpNotificationService.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
 
-# 6. Финальный образ
+# 6. пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
 FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
